@@ -1,0 +1,133 @@
+library(readxl)
+library(lme4)
+library(lmerTest)
+library(emmeans)
+library(dplyr)
+library(ggplot2)
+library(writexl)
+
+data <- read_excel(
+  "C:/Users/spark/Desktop/Latency for Linear Regression Mode.xlsx",
+  na = c("", "NA", "N/A")
+)
+
+data$Subject <- factor(data$Subject)
+data$StressGroup <- factor(trimws(data$StressGroup))
+data$Day <- factor(data$Day)
+
+data$Latency <- as.numeric(data$Latency)
+data$Accuracy <- as.numeric(data$Accuracy)
+
+data$StressGroup <- relevel(data$StressGroup, ref = "Control")
+
+data <- subset(data, !(StressGroup == "Associative" & Day %in% c("5","6","7")))
+data <- droplevels(data)
+
+model_day_group <- lmer(
+  Latency ~ Accuracy * StressGroup + Day * StressGroup + (1 | Subject),
+  data = data
+)
+
+print(summary(model_day_group))
+
+fixed_table <- as.data.frame(summary(model_day_group)$coefficients)
+fixed_table$Term <- rownames(fixed_table)
+rownames(fixed_table) <- NULL
+
+fixed_table <- fixed_table[, c(
+  "Term",
+  "Estimate",
+  "Std. Error",
+  "df",
+  "t value",
+  "Pr(>|t|)"
+)]
+
+fixed_table$Significance <- cut(
+  fixed_table$`Pr(>|t|)`,
+  breaks = c(-Inf, 0.001, 0.01, 0.05, 0.1, Inf),
+  labels = c("***", "**", "*", ".", "")
+)
+
+print(fixed_table)
+
+write_xlsx(
+  list(Fixed_Effects = fixed_table),
+  "C:/Users/spark/Desktop/fixed_effects_model.xlsx"
+)
+
+pred_df <- as.data.frame(
+  emmeans(
+    model_day_group,
+    ~ Accuracy * StressGroup * Day,
+    at = list(
+      Accuracy = seq(
+        min(data$Accuracy, na.rm = TRUE),
+        max(data$Accuracy, na.rm = TRUE),
+        length.out = 40
+      )
+    )
+  )
+)
+
+pred_df$Day <- as.character(pred_df$Day)
+
+control_df <- subset(pred_df, StressGroup == "Control" & Day %in% c("1","3","7"))
+adaptive_df <- subset(pred_df, StressGroup == "Adaptive" & Day %in% c("1","3","7"))
+nonadapt_df <- subset(pred_df, StressGroup == "Non-Adaptive" & Day %in% c("1","3","7"))
+assoc_df <- subset(pred_df, StressGroup == "Associative" & Day %in% c("1","2","3","4"))
+
+control_df$Day <- factor(control_df$Day, levels = c("1","3","7"))
+adaptive_df$Day <- factor(adaptive_df$Day, levels = c("1","3","7"))
+nonadapt_df$Day <- factor(nonadapt_df$Day, levels = c("1","3","7"))
+assoc_df$Day <- factor(assoc_df$Day, levels = c("1","2","3","4"))
+
+control_plot <- ggplot(control_df, aes(x = Accuracy, y = emmean, color = Day)) +
+  geom_line(linewidth = 1) +
+  scale_color_manual(values = c(
+    "1" = rgb(200,200,200, maxColorValue = 255),
+    "3" = rgb(128,128,128, maxColorValue = 255),
+    "7" = rgb(60,60,60, maxColorValue = 255)
+  )) +
+  labs(title = "Control", x = "Accuracy (%)", y = "Latency (sec)", color = "Day") +
+  theme_minimal()
+
+adaptive_plot <- ggplot(adaptive_df, aes(x = Accuracy, y = emmean, color = Day)) +
+  geom_line(linewidth = 1) +
+  scale_color_manual(values = c(
+    "1" = rgb(173,216,230, maxColorValue = 255),
+    "3" = rgb(100,170,255, maxColorValue = 255),
+    "7" = rgb(0,0,255, maxColorValue = 255)
+  )) +
+  labs(title = "Adaptive", x = "Accuracy (%)", y = "Latency (sec)", color = "Day") +
+  theme_minimal()
+
+nonadapt_plot <- ggplot(nonadapt_df, aes(x = Accuracy, y = emmean, color = Day)) +
+  geom_line(linewidth = 1) +
+  scale_color_manual(values = c(
+    "1" = rgb(255,200,120, maxColorValue = 255),
+    "3" = rgb(255,127,0, maxColorValue = 255),
+    "7" = rgb(180,80,0, maxColorValue = 255)
+  )) +
+  labs(title = "Non-Adaptive", x = "Accuracy (%)", y = "Latency (sec)", color = "Day") +
+  theme_minimal()
+
+assoc_plot <- ggplot(assoc_df, aes(x = Accuracy, y = emmean, color = Day)) +
+  geom_line(linewidth = 1) +
+  scale_color_manual(values = c(
+    "1" = rgb(255,200,200, maxColorValue = 255),
+    "2" = rgb(255,0,0, maxColorValue = 255),
+    "3" = rgb(255,102,153, maxColorValue = 255),
+    "4" = rgb(255,153,204, maxColorValue = 255)
+  )) +
+  labs(title = "Associative", x = "Accuracy (%)", y = "Latency (sec)", color = "Day") +
+  theme_minimal()
+
+pdf("C:/Users/spark/Desktop/final_latency_plots.pdf", width = 10, height = 7)
+
+print(control_plot)
+print(adaptive_plot)
+print(nonadapt_plot)
+print(assoc_plot)
+
+dev.off()
