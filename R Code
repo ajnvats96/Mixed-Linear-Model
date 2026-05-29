@@ -7,7 +7,7 @@ library(ggplot2)
 library(writexl)
 
 data <- read_excel(
-  "C:/Users/spark/Desktop/Latency for Linear Regression Mode.xlsx",
+  "File_Directory.xlsx",
   na = c("", "NA", "N/A")
 )
 
@@ -53,7 +53,7 @@ print(fixed_table)
 
 write_xlsx(
   list(Fixed_Effects = fixed_table),
-  "C:/Users/spark/Desktop/fixed_effects_model.xlsx"
+  "File_Directory.xlsx"
 )
 
 pred_df <- as.data.frame(
@@ -123,7 +123,7 @@ assoc_plot <- ggplot(assoc_df, aes(x = Accuracy, y = emmean, color = Day)) +
   labs(title = "Associative", x = "Accuracy (%)", y = "Latency (sec)", color = "Day") +
   theme_minimal()
 
-pdf("C:/Users/spark/Desktop/final_latency_plots.pdf", width = 10, height = 7)
+pdf("File_Directory.pdf", width = 10, height = 7)
 
 print(control_plot)
 print(adaptive_plot)
